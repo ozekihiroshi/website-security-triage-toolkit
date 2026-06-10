@@ -56,7 +56,7 @@ It is intended for structured assessment, practical first-response review, docum
 ## Example Script Usage
 
 ```bash
-python scripts/check_site_status.py https://example.com
-python scripts/check_domain_auth.py example.com
-python scripts/check_domain_auth.py example.com --dkim-selector google
+python3 scripts/check_site_status.py https://example.com
+python3 scripts/check_domain_auth.py example.com
+python3 scripts/check_domain_auth.py example.com --dkim-selector google
 ```

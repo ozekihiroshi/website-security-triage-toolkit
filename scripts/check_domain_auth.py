@@ -141,10 +141,12 @@ def print_assessment(domain, txt_records, dmarc_records, dkim_records, selector)
         print("- DMARC: found")
 
     if selector:
-        if dkim_records:
-            print(f"- DKIM selector '{selector}': found")
-        else:
+        if not dkim_records:
             print(f"- DKIM selector '{selector}': not found")
+        elif any("p=" in record.lower() and record.lower().strip().endswith("p=") for record in dkim_records):
+            print(f"- DKIM selector '{selector}': record found, but public key appears empty")
+        else:
+            print(f"- DKIM selector '{selector}': found")
     else:
         print("- DKIM: not checked because no selector was provided")
 
