@@ -1,0 +1,58 @@
+~/projects/website-security-triage-toolkit$ python3 scripts/check_email_dns.py community-energy.j
+p
+# Email DNS Check Report: community-energy.jp
+
+Overall status: ok
+Warnings: 0
+
+## NS [ok]
+Records:
+  - ns-1872.awsdns-42.co.uk
+  - ns-392.awsdns-49.com
+  - ns-610.awsdns-12.net
+  - ns-1265.awsdns-30.org
+Notes:
+  - These nameservers indicate where DNS is currently managed.
+
+## MX [ok]
+Records:
+  - 5 alt1.aspmx.l.google.com
+  - 5 alt2.aspmx.l.google.com
+  - 1 aspmx.l.google.com
+  - 10 alt3.aspmx.l.google.com
+  - 10 alt4.aspmx.l.google.com
+Notes:
+  - MX records determine where inbound mail is delivered.
+
+## SPF [ok]
+Records:
+  - v=spf1 include:_spf.google.com ~all
+Notes:
+  - SPF record found.
+  - SPF uses soft fail (~all), commonly used during normal operation or transition.
+
+## DMARC [ok]
+Records:
+  - v=DMARC1; p=none; rua=mailto:dmarc@community-energy.jp; ruf=mailto:dmarc@community-energy.jp; sp=none; pct=100
+Notes:
+  - DMARC record found.
+  - DMARC policy is p=none. This is useful for monitoring and initial troubleshooting.
+
+## DKIM [ok]
+Records:
+  - google: v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6a/zWj2jUzWg3N5LxW+eqok9Bx91pw9p5uNOzRMGJQASbn89CYwANc2RRkSQqzKt1XaQw5Q2vPSzKAciQnL+iGquEGWm6VFB7t/Pry+ImShWi5KVj2ux8h7DwohDSE/HodkYoSpJF8cQ1bY0mha/qGNfYg4fLZ/nAS6x0DLqdADjsNY8nXeElHoZeKVOLpyMD1bNS6HSNLuYMB0sVilDBmBJGO79N1WbddGYLObDQlWzQ2viimZGS/cKHZjcJb/MZ0mN5a4VtiR0/PGIL46jz3KckyQIHDmcqCm0vd/2JyQBvZu3kzWjoStq2As1fd8uL69e7dRCwLVptX2gb8FuTwIDAQAB
+Notes:
+  - DKIM record found for at least one selector.
+
+## Common mail hosts [ok]
+Records:
+  - mail.community-energy.jp A 3.114.55.240
+Notes:
+  - Common mail-related hostnames were found.
+
+## Suggested next steps
+- Confirm the active DNS provider before making changes.
+- Compare MX/SPF/DKIM/DMARC records with the intended mail provider documentation.
+- In cPanel, review Email Deliverability and Email Routing.
+- If bounce messages exist, inspect the exact SMTP error text.
+- If provider-side blocking or server reputation is suspected, escalate to the hosting provider with this report.

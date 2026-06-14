@@ -6,6 +6,25 @@ This toolkit is designed for small business websites, WordPress/CMS sites, and g
 
 The goal is to support a structured first-response assessment, document findings clearly, and identify practical next steps.
 
+## Email Deliverability / DNS Checks
+
+This toolkit also includes a basic email DNS troubleshooting script for small business hosting and cPanel-style environments.
+
+It checks:
+
+- NS records
+- MX records
+- SPF
+- DMARC
+- DKIM selectors
+- common mail hostnames such as `mail.example.com`
+
+Example:
+
+```bash
+python3 scripts/check_email_dns.py example.com
+python3 scripts/check_email_dns.py example.com --selector google
+
 ## Purpose
 
 This toolkit helps organize the initial investigation of issues such as:
