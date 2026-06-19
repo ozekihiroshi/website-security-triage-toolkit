@@ -79,3 +79,4 @@ python3 scripts/check_site_status.py https://example.com
 python3 scripts/check_domain_auth.py example.com
 python3 scripts/check_domain_auth.py example.com --dkim-selector google
 ```
+- [AWS EC2 system mail delivery via Google Workspace SMTP relay](docs/case-studies/aws-ec2-system-mail-google-workspace-smtp-relay.md)
