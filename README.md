@@ -37,6 +37,19 @@ Normally run the Python scripts from your own workstation, WSL, or Linux environ
 
 The scripts are read-only and do not change DNS, email, TLS, or website configuration. The checklists and templates support the manual investigation and reporting around those checks.
 
+## Basic Usage
+
+Clone or download the repository, open a terminal in a Python environment, and run a public website check from the repository directory. On Windows, WSL is a straightforward option.
+
+```bash
+cd /path/to/website-security-triage-toolkit
+python3 scripts/check_site_status.py https://example.com
+```
+
+This command checks the public website response and does not require SSH, WordPress Admin, DNS-provider access, or root privileges. DNS and email commands use a domain such as `example.com`; install `requirements.txt` first when a command requires `dnspython`.
+
+Commands under `tests/` verify this toolkit with mocked data; they are not live checks of a client domain.
+
 ## Email Deliverability / DNS Checks
 
 This toolkit includes a basic email DNS troubleshooting script for small business hosting and cPanel-style environments.
@@ -99,7 +112,9 @@ A missing DNS dependency means the DNS result is **not checked**. It must not be
 
 The toolkit does not install dependencies automatically.
 
-## Verification
+## Toolkit Verification (Not a Live Domain Check)
+
+The following command tests this toolkit with mocked data. It does not inspect a client website or DNS zone.
 
 After installing `requirements.txt`, run all regression tests:
 
