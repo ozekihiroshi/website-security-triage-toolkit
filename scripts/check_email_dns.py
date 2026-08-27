@@ -75,12 +75,12 @@ def query_records(name: str, record_type: str, timeout: float = 5.0) -> List[str
         return []
     except dns.resolver.NoAnswer:
         return []
-    except dns.resolver.NoNameservers:
-        return []
+    except dns.resolver.NoNameservers as exc:
+        return [f"ERROR: nameserver failure: {exc}"]
     except dns.exception.Timeout:
-        return []
-    except Exception:
-        return []
+        return ["ERROR: DNS query timed out"]
+    except Exception as exc:
+        return [f"ERROR: DNS query failed: {exc}"]
 
     records = []
     for answer in answers:
@@ -96,12 +96,19 @@ def query_records(name: str, record_type: str, timeout: float = 5.0) -> List[str
     return records
 
 
+def query_failed(records: List[str]) -> bool:
+    return any(record.startswith("ERROR:") for record in records)
+
+
 def check_ns(domain: str) -> CheckResult:
     records = query_records(domain, "NS")
     warnings = []
     notes = []
 
-    if not records:
+    if query_failed(records):
+        warnings.append("NS was not checked because the DNS query failed.")
+        status = "error"
+    elif not records:
         warnings.append("No NS records found. DNS authority could not be confirmed.")
         status = "warning"
     else:
@@ -116,7 +123,10 @@ def check_mx(domain: str) -> CheckResult:
     warnings = []
     notes = []
 
-    if not records:
+    if query_failed(records):
+        warnings.append("MX was not checked because the DNS query failed.")
+        status = "error"
+    elif not records:
         warnings.append("No MX records found. Incoming email may not be delivered.")
         status = "warning"
     else:
@@ -147,6 +157,11 @@ def check_spf(domain: str) -> CheckResult:
     warnings = []
     notes = []
 
+    if query_failed(txt_records):
+        warnings.append("SPF was not checked because the DNS query failed.")
+        notes.extend(txt_records)
+        return CheckResult("SPF", "error", [], warnings, notes)
+
     if not spf_records:
         warnings.append("No SPF record found. Outbound mail authentication may fail.")
         status = "warning"
@@ -158,7 +173,8 @@ def check_spf(domain: str) -> CheckResult:
         spf = spf_records[0]
         notes.append("SPF record found.")
 
-        if "include:" not in spf and " ip4:" not in spf and " ip6:" not in spf and " a" not in spf and " mx" not in spf:
+        mechanism_pattern = r"(?:^|\s)[+?~-]?(?:include:|ip4:|ip6:|a(?=\s|$|:|/)|mx(?=\s|$|:|/))"
+        if not re.search(mechanism_pattern, spf, flags=re.IGNORECASE):
             warnings.append("SPF record has no obvious sending source mechanism such as include, ip4, ip6, a, or mx.")
 
         if "-all" in spf:
@@ -179,6 +195,11 @@ def check_dmarc(domain: str) -> CheckResult:
     dmarc_records = [r for r in txt_records if r.lower().startswith("v=dmarc1")]
     warnings = []
     notes = []
+
+    if query_failed(txt_records):
+        warnings.append("DMARC was not checked because the DNS query failed.")
+        notes.extend(txt_records)
+        return CheckResult("DMARC", "error", [], warnings, notes)
 
     if not dmarc_records:
         warnings.append("No DMARC record found.")
@@ -207,15 +228,23 @@ def check_dkim(domain: str, selectors: List[str]) -> CheckResult:
     found_records = []
     warnings = []
     notes = []
+    query_errors = []
 
     for selector in selectors:
         name = f"{selector}._domainkey.{domain}"
         txt_records = query_records(name, "TXT")
+        if query_failed(txt_records):
+            query_errors.extend(f"{selector}: {record}" for record in txt_records)
+            continue
         dkim_records = [r for r in txt_records if "v=dkim1" in r.lower() or "p=" in r.lower()]
         for record in dkim_records:
             found_records.append(f"{selector}: {record}")
 
-    if not found_records:
+    if query_errors:
+        status = "error"
+        warnings.append("DKIM was not fully checked because one or more DNS queries failed.")
+        notes.extend(query_errors)
+    elif not found_records:
         status = "warning"
         warnings.append("No DKIM records found for the checked selectors. The correct selector may be different.")
         notes.append("Check cPanel Email Deliverability or the mail provider admin panel for the exact DKIM selector.")
@@ -236,16 +265,25 @@ def check_common_mail_hosts(domain: str) -> CheckResult:
     records = []
     warnings = []
     notes = []
+    query_errors = []
 
     for name in names:
         a_records = query_records(name, "A")
         cname_records = query_records(name, "CNAME")
+        query_errors.extend(f"{name} A {record}" for record in a_records if record.startswith("ERROR:"))
+        query_errors.extend(f"{name} CNAME {record}" for record in cname_records if record.startswith("ERROR:"))
         for r in a_records:
-            records.append(f"{name} A {r}")
+            if not r.startswith("ERROR:"):
+                records.append(f"{name} A {r}")
         for r in cname_records:
-            records.append(f"{name} CNAME {r}")
+            if not r.startswith("ERROR:"):
+                records.append(f"{name} CNAME {r}")
 
-    if records:
+    if query_errors:
+        status = "error"
+        warnings.append("Common mail hosts were not fully checked because one or more DNS queries failed.")
+        notes.extend(query_errors)
+    elif records:
         status = "ok"
         notes.append("Common mail-related hostnames were found.")
     else:
@@ -257,11 +295,13 @@ def check_common_mail_hosts(domain: str) -> CheckResult:
 
 def build_summary(results: List[CheckResult]) -> Dict[str, Any]:
     warning_count = sum(len(r.warnings) for r in results)
-    status = "ok" if warning_count == 0 else "warning"
+    error_count = sum(1 for r in results if r.status == "error")
+    status = "error" if error_count else ("ok" if warning_count == 0 else "warning")
 
     return {
         "overall_status": status,
         "warning_count": warning_count,
+        "error_count": error_count,
         "results": [asdict(r) for r in results],
     }
 
@@ -271,6 +311,7 @@ def print_human_report(domain: str, summary: Dict[str, Any]) -> None:
     print()
     print(f"Overall status: {summary['overall_status']}")
     print(f"Warnings: {summary['warning_count']}")
+    print(f"Errors: {summary['error_count']}")
     print()
 
     for result in summary["results"]:
@@ -343,7 +384,7 @@ def main() -> int:
     else:
         print_human_report(domain, summary)
 
-    return 0
+    return 2 if summary["error_count"] else 0
 
 
 if __name__ == "__main__":

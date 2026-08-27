@@ -95,17 +95,17 @@ def resolve_records(
         return CheckResult(record_type, "error", notes=[f"DNS lookup failed: {exc}"])
 
 
-def get_txt_values(
+def get_txt_result(
     resolver: dns.resolver.Resolver, domain: str
-) -> list[str]:
+) -> CheckResult:
     result = resolve_records(resolver, domain, "TXT")
     if result.status != "ok":
-        return []
+        return CheckResult("TXT", result.status, notes=result.notes)
     values: list[str] = []
     for record in result.records:
         # dnspython renders quoted chunks. Keep the content readable.
         values.append(record.replace('" "', "").strip('"'))
-    return values
+    return CheckResult("TXT", "ok", values)
 
 
 def find_prefixed_txt(
@@ -115,8 +115,14 @@ def find_prefixed_txt(
 
 
 def check_dmarc(resolver: dns.resolver.Resolver, domain: str) -> CheckResult:
-    values = get_txt_values(resolver, f"_dmarc.{domain}")
-    matches = find_prefixed_txt(values, ("v=dmarc1",))
+    txt_result = get_txt_result(resolver, f"_dmarc.{domain}")
+    if txt_result.status == "error":
+        return CheckResult(
+            "DMARC",
+            "error",
+            notes=["DMARC was not checked because the DNS query failed.", *txt_result.notes],
+        )
+    matches = find_prefixed_txt(txt_result.records, ("v=dmarc1",))
     if matches:
         return CheckResult("DMARC", "ok", matches)
     return CheckResult(
@@ -140,8 +146,14 @@ def check_dkim(
         )
 
     host = f"{selector}._domainkey.{domain}"
-    values = get_txt_values(resolver, host)
-    matches = find_prefixed_txt(values, ("v=dkim1", "k=rsa", "k=ed25519"))
+    txt_result = get_txt_result(resolver, host)
+    if txt_result.status == "error":
+        return CheckResult(
+            "DKIM",
+            "error",
+            notes=["DKIM was not checked because the DNS query failed.", *txt_result.notes],
+        )
+    matches = find_prefixed_txt(txt_result.records, ("v=dkim1", "k=rsa", "k=ed25519"))
     if matches:
         return CheckResult("DKIM", "ok", matches, [f"Selector checked: {selector}"])
     return CheckResult(
@@ -229,7 +241,9 @@ def analyze_safety(
 ) -> list[str]:
     notes: list[str] = []
 
-    if mail["MX"].status == "ok":
+    if mail["MX"].status == "error":
+        notes.append("MX was not checked because the DNS query failed.")
+    elif mail["MX"].status == "ok":
         notes.append(
             "Existing MX records detected. Do not replace or delete MX records when connecting a website to a new provider."
         )
@@ -238,15 +252,26 @@ def analyze_safety(
             "No MX records were found. Confirm whether this domain is expected to receive email before changing DNS."
         )
 
-    if mail["SPF"].status != "ok":
+    if mail["SPF"].status == "error":
+        notes.append("SPF was not checked because the DNS query failed.")
+    elif mail["SPF"].status != "ok":
         notes.append("No SPF record was detected. Confirm the email provider and publishing requirements before adding one.")
-    if mail["DMARC"].status != "ok":
+    if mail["DMARC"].status == "error":
+        notes.append("DMARC was not checked because the DNS query failed.")
+    elif mail["DMARC"].status != "ok":
         notes.append("No DMARC policy was detected. Add it only after confirming SPF and DKIM alignment.")
     if all(item.status == "error" for item in http_results):
         notes.append("Website checks failed. Confirm DNS propagation, hosting status, firewall rules, and the expected web host.")
-    if apex["A"].status != "ok" and apex["AAAA"].status != "ok" and apex["CNAME"].status != "ok":
+    apex_routing = [apex["A"], apex["AAAA"], apex["CNAME"]]
+    if all(result.status == "error" for result in apex_routing):
+        notes.append("Apex web-routing records were not checked because the DNS queries failed.")
+    elif all(result.status != "ok" for result in apex_routing):
         notes.append("No common web-routing record was detected at the apex domain. Verify the provider's required A, ALIAS/ANAME, or CNAME-equivalent record.")
-    if www["A"].status != "ok" and www["AAAA"].status != "ok" and www["CNAME"].status != "ok":
+
+    www_routing = [www["A"], www["AAAA"], www["CNAME"]]
+    if all(result.status == "error" for result in www_routing):
+        notes.append("www web-routing records were not checked because the DNS queries failed.")
+    elif all(result.status != "ok" for result in www_routing):
         notes.append("No common web-routing record was detected for www. Confirm whether www should redirect or point to a separate host.")
 
     notes.append(
@@ -370,11 +395,18 @@ def main() -> int:
         for record_type in ("A", "AAAA", "CNAME")
     }
 
-    txt_values = get_txt_values(resolver, domain)
-    spf_values = find_prefixed_txt(txt_values, ("v=spf1",))
-    spf = CheckResult("SPF", "ok", spf_values) if spf_values else CheckResult(
-        "SPF", "warning", notes=["No SPF TXT record found at the apex domain."]
-    )
+    txt_result = get_txt_result(resolver, domain)
+    if txt_result.status == "error":
+        spf = CheckResult(
+            "SPF",
+            "error",
+            notes=["SPF was not checked because the DNS query failed.", *txt_result.notes],
+        )
+    else:
+        spf_values = find_prefixed_txt(txt_result.records, ("v=spf1",))
+        spf = CheckResult("SPF", "ok", spf_values) if spf_values else CheckResult(
+            "SPF", "warning", notes=["No SPF TXT record found at the apex domain."]
+        )
 
     mail = {
         "MX": resolve_records(resolver, domain, "MX"),
@@ -413,7 +445,8 @@ def main() -> int:
             print(f"Could not write JSON output: {exc}", file=sys.stderr)
             return 1
 
-    return 0
+    dns_results = [*apex.values(), *www.values(), *mail.values()]
+    return 2 if any(result.status == "error" for result in dns_results) else 0
 
 
 if __name__ == "__main__":

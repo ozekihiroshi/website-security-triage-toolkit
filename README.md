@@ -72,10 +72,12 @@ python3 scripts/check_domain_stack.py example.com --dkim-selector google
 python3 scripts/check_domain_stack.py example.com --json domain-stack-report.json
 ```
 
-The script requires `dnspython`:
+Install the declared DNS dependency in a virtual environment:
 
 ```bash
-python3 -m pip install dnspython
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
 ## Requirements and Failure Semantics
@@ -87,19 +89,19 @@ python3 -m pip install dnspython
 
 A missing DNS dependency means the DNS result is **not checked**. It must not be reported as a record being present or absent.
 
-`check_domain_auth.py` returns exit 2 when a DNS query cannot run or returns an execution error. It returns exit 0 only when its DNS queries complete without an `ERROR:` result.
+`check_domain_auth.py`, `check_email_dns.py`, and `check_domain_stack.py` return a non-zero execution status when one or more DNS queries fail. A failed query is reported as `not checked` or `error`, never as a confirmed missing record. A completed query that finds no record remains a normal diagnostic result.
 
 The toolkit does not install dependencies automatically.
 
 ## Verification
 
-Run the standard-library regression test:
+After installing `requirements.txt`, run all regression tests:
 
 ```bash
-python -m unittest tests/test_check_domain_auth.py
+python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-The test uses mocked DNS errors and does not query or modify a real DNS zone.
+The tests use mocked DNS answers and failures. They do not query or modify a real DNS zone. Actual public DNS checks remain read-only and should be recorded separately from unit-test results.
 
 ## Suggested Workflow
 
