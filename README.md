@@ -6,6 +6,10 @@ This toolkit is designed for small business websites, WordPress/CMS sites, and g
 
 The goal is to support a structured first-response assessment, document findings clearly, and identify practical next steps.
 
+## Project Status
+
+This is an initial public release that has reached a usable baseline for practical read-only website, DNS, TLS, and email assessment. It does not claim complete incident response coverage, universal provider compatibility, or guaranteed remediation.
+
 ## Purpose
 
 This toolkit helps organize the initial investigation of issues such as:
