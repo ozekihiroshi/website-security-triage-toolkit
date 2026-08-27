@@ -99,6 +99,10 @@ def query_dns(name, record_type):
     return query_with_dig(name, record_type)
 
 
+def query_failed(records):
+    return any(record.startswith("ERROR:") for record in records)
+
+
 def find_spf(txt_records):
     return [record for record in txt_records if record.lower().startswith("v=spf1")]
 
@@ -128,20 +132,26 @@ def print_assessment(domain, txt_records, dmarc_records, dkim_records, selector)
 
     print("## Basic Assessment")
 
-    if not spf_records:
+    if query_failed(txt_records):
+        print("- SPF: not checked because the DNS query failed")
+    elif not spf_records:
         print("- SPF: not found")
     elif len(spf_records) == 1:
         print("- SPF: found")
     else:
         print("- SPF: multiple SPF records found. This should usually be corrected.")
 
-    if not dmarc_records:
+    if query_failed(dmarc_records):
+        print("- DMARC: not checked because the DNS query failed")
+    elif not dmarc_records:
         print("- DMARC: not found")
     else:
         print("- DMARC: found")
 
     if selector:
-        if not dkim_records:
+        if query_failed(dkim_records):
+            print(f"- DKIM selector '{selector}': not checked because the DNS query failed")
+        elif not dkim_records:
             print(f"- DKIM selector '{selector}': not found")
         elif any("p=" in record.lower() and record.lower().strip().endswith("p=") for record in dkim_records):
             print(f"- DKIM selector '{selector}': record found, but public key appears empty")
@@ -161,8 +171,10 @@ def print_assessment(domain, txt_records, dmarc_records, dkim_records, selector)
 
 def normalize_domain(domain):
     domain = domain.strip()
-    domain = domain.removeprefix("http://")
-    domain = domain.removeprefix("https://")
+    for prefix in ("http://", "https://"):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
     domain = domain.split("/")[0]
     return domain.strip().lower()
 
@@ -202,10 +214,15 @@ def main():
     txt_records = results.get("TXT", [])
     print_assessment(domain, txt_records, dmarc_records, dkim_records, args.dkim_selector)
 
+    checked_record_sets = list(results.values()) + [dmarc_records]
+    if args.dkim_selector:
+        checked_record_sets.append(dkim_records)
+    return 2 if any(query_failed(records) for records in checked_record_sets) else 0
+
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
     except KeyboardInterrupt:
         print("Interrupted.", file=sys.stderr)
         sys.exit(130)

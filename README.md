@@ -78,6 +78,29 @@ The script requires `dnspython`:
 python3 -m pip install dnspython
 ```
 
+## Requirements and Failure Semantics
+
+- Python 3.8 or later.
+- `check_site_status.py` uses the Python standard library.
+- `check_domain_auth.py` needs `dnspython` or the system `dig` command.
+- `check_email_dns.py` and `check_domain_stack.py` require `dnspython`.
+
+A missing DNS dependency means the DNS result is **not checked**. It must not be reported as a record being present or absent.
+
+`check_domain_auth.py` returns exit 2 when a DNS query cannot run or returns an execution error. It returns exit 0 only when its DNS queries complete without an `ERROR:` result.
+
+The toolkit does not install dependencies automatically.
+
+## Verification
+
+Run the standard-library regression test:
+
+```bash
+python -m unittest tests/test_check_domain_auth.py
+```
+
+The test uses mocked DNS errors and does not query or modify a real DNS zone.
+
 ## Suggested Workflow
 
 1. Confirm the client’s reported symptoms and intended outcome.
