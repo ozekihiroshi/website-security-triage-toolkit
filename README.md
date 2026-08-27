@@ -31,6 +31,12 @@ This toolkit helps organize the initial investigation of issues such as:
 * Findings report templates
 * Lightweight Python scripts for website, DNS, email, and connection checks
 
+## Where to Run It
+
+Normally run the Python scripts from your own workstation, WSL, or Linux environment. They query public website, DNS, TLS, and email records; they do not require SSH, WordPress Admin, or target-server filesystem access. Running them on the target server is optional, and the result then reflects that server's network and DNS viewpoint.
+
+The scripts are read-only and do not change DNS, email, TLS, or website configuration. The checklists and templates support the manual investigation and reporting around those checks.
+
 ## Email Deliverability / DNS Checks
 
 This toolkit includes a basic email DNS troubleshooting script for small business hosting and cPanel-style environments.
